@@ -1,7 +1,14 @@
-// Copyright © 2022 CCP ehf.
+// Copyright ï¿½ 2022 CCP ehf.
 
 #include "src/pch.h"
 #include "src/parserstate.h"
+
+#if defined( __ANDROID__ )
+// The Apple branch below gets newlocale and its conversion function transitively; bionic
+// does not surface either through <charconv>, so name the headers.
+#include <locale.h>
+#include <stdlib.h>
+#endif
 
 /*!re2c
     re2c:yyfill:enable = 0;
@@ -180,17 +187,25 @@ Token ScanToken( const char *s )
         SPACE { continue; }
         [\000] { return {OP_EOF}; }
 		FLOAT_CONST { 
-#ifndef __APPLE__
+#if !defined( __APPLE__ ) && !defined( __ANDROID__ )
             float value = 0;
             auto converted = std::from_chars( start, YYCURSOR, value );
             if( converted.ec == std::errc() )
             {
-                return { OP_FLOAT_CONST, start, YYCURSOR, value }; 
+                return { OP_FLOAT_CONST, start, YYCURSOR, value };
             }
             else
             {
                 return { OP_ERROR, start, YYCURSOR + 1 };
             }
+#elif defined( __ANDROID__ )
+            // NDK libc++ declares the floating-point std::from_chars overloads and then
+            // deletes them, so the branch above does not compile here -- "call to deleted
+            // function". bionic has no atof_l either, but it does have strtof_l from API
+            // 26, and minSdk is 31. strtof_l also avoids the double-to-float narrowing
+            // the Apple branch performs.
+            static auto cLocale = newlocale( LC_ALL_MASK, "C", nullptr );
+            return { OP_FLOAT_CONST, start, YYCURSOR, strtof_l( start, nullptr, cLocale ) };
 #else
         	static auto cLocale = newlocale( LC_ALL_MASK, NULL, NULL );
             return { OP_FLOAT_CONST, start, YYCURSOR, float( atof_l( start, cLocale ) ) };
