@@ -60,7 +60,15 @@ uint32_t BitScan( uint64_t mask )
 	unsigned long idx = 0;
 	_BitScanForward64( &idx, mask );
 	return uint32_t( idx );
-#elif __APPLE__
+#else
+	// Every compiler that is not MSVC has the builtin. Until 2026-09-10 this branch read
+	// `#elif __APPLE__`, so on Android the function had no return statement at all. Flowing off
+	// the end of a non-void function is undefined behaviour, and clang took it at its word:
+	// BitScan's end became `unreachable`, so did AllocateTemp, and so did every path that
+	// reached AllocateTemp -- the exit of the FUNCTION_CALL argument loop in BuildCode among
+	// them. The loop lost its bound and every expression with a function call walked off the
+	// end of node->children into BuildCode( nullptr ), while every BINARY_OP with two non-temp
+	// operands was "impossible". -Wreturn-type warned at every build.
 	return uint32_t( __builtin_ctzll( mask ) );
 #endif
 }
