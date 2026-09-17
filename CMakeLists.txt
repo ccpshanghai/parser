@@ -44,6 +44,15 @@ target_sources(CcpParser PRIVATE
 
 target_precompile_headers(CcpParser PRIVATE src/pch.h)
 
+# A non-void function that can run off its end is how the Android build of this library lost the
+# bound of BuildCode's argument loop (codebuilder.cpp's BitScan had a Windows branch and an Apple
+# branch and no other, 2026-09-10): the fall-through is undefined behaviour, clang treats the code
+# that follows as unreachable, and a loop whose exit is unreachable has no exit. MSVC makes this
+# an error (C4716); clang and gcc only warn, and the warning sat in every build log unread.
+if(NOT MSVC)
+    target_compile_options(CcpParser PRIVATE -Werror=return-type)
+endif()
+
 target_include_directories(CcpParser
     PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
