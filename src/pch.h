@@ -12,3 +12,5 @@
 #include <sstream>
 #include <cmath>
 #include <charconv>
+#include <algorithm>
+#include <cstring>
